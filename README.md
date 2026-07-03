@@ -1,5 +1,12 @@
-# mom-skills
+# mom-brain  (self-updating AI package for Mom's Claude Code)
 
-A small, self-contained bundle of GENERAL Claude skills (reasoning, mental models, learning science,
-memory architecture, skill abstraction, cross-domain transfer, alignment). No secrets, no personal
-paths, no hooks/gates. Install: copy the folders in `skills/` into `~/.claude/skills/`.
+One source of truth for Mom's assistant: the operating **brain** (CLAUDE.md), a bundle of general
+**skills**, and a memory scaffold. All portable, no secrets, no personal paths, no session-trapping hooks.
+
+## First-time install on her PC
+`git clone https://github.com/mufasa1977-stack/mom-skills ~/mom-brain`
+`powershell -ExecutionPolicy Bypass -File ~/mom-brain/install.ps1`   (then restart Claude Code)
+
+## Update anytime (as the brain/skills get better)
+`powershell -ExecutionPolicy Bypass -File ~/mom-brain/update.ps1`   (git pull + reinstall; backs up first)
+Or just tell her Claude: **"update yourself"** — its brain knows how.
