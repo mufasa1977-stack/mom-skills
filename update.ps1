@@ -1,5 +1,5 @@
 <#
-  update.ps1 — one command to pull the latest mom-brain and (re)install it.
+  update.ps1 - one command to pull the latest mom-brain and (re)install it.
   Run from the cloned repo folder:  powershell -ExecutionPolicy Bypass -File .\update.ps1
 #>
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path

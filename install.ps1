@@ -1,5 +1,5 @@
 <#
-  install.ps1 — installs/refreshes the mom-brain package into ~/.claude
+  install.ps1 - installs/refreshes the mom-brain package into ~/.claude
   (brain CLAUDE.md + general skills + memory scaffold). Safe: backs up before overwriting,
   never touches personal files, no secrets, no session-trapping hooks.
   Run from the cloned repo folder:  powershell -ExecutionPolicy Bypass -File .\install.ps1
@@ -43,7 +43,7 @@ if (Test-Path $skillsSrc) {
   else { Say "[verify] every skill folder has a SKILL.md at its top level" 'Green' }
 }
 
-# 3) memory scaffold (create only if missing — never clobber her memories)
+# 3) memory scaffold (create only if missing - never clobber her memories)
 $idx = Join-Path $claude 'memory\MEMORY.md'
 if (-not (Test-Path $idx)) {
 @'
@@ -51,7 +51,7 @@ if (-not (Test-Path $idx)) {
 > One line per memory. Skim at the start of each session; open any that look relevant.
 > Save durable facts as ~/.claude/memory/<name>.md and add a pointer line here.
 
-- [about-me](about-me.md) — who I am and how I like to be helped
+- [about-me](about-me.md) - who I am and how I like to be helped
 '@ | Set-Content $idx -Encoding UTF8
 }
 $about = Join-Path $claude 'memory\about-me.md'
