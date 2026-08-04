@@ -20,14 +20,27 @@ if (Test-Path $brainSrc) {
   Say "[brain] ~/.claude/CLAUDE.md updated" 'Green'
 }
 
-# 2) skills (copy each folder; overwrite = refresh to latest)
+# 2) skills (replace each folder cleanly = refresh to latest)
+# FIX 2026-08-03: Copy-Item into an EXISTING folder NESTS it (skills/x/x/SKILL.md). A nested skill does
+# not load, so every re-install quietly buried the skills one level deeper and Claude "lost" abilities.
+# We now (a) delete any nested duplicate left behind by older installs, (b) replace instead of merge.
+$skillsDst = Join-Path $claude 'skills'
+Get-ChildItem $skillsDst -Directory -EA SilentlyContinue | ForEach-Object {
+  $nested = Join-Path $_.FullName $_.Name
+  if (Test-Path $nested) { Remove-Item $nested -Recurse -Force -EA SilentlyContinue; Say "[repair] removed nested copy in $($_.Name)" 'Yellow' }
+}
 $skillsSrc = Join-Path $here 'skills'
 if (Test-Path $skillsSrc) {
   $n = 0
   Get-ChildItem $skillsSrc -Directory | ForEach-Object {
-    Copy-Item $_.FullName (Join-Path $claude "skills\$($_.Name)") -Recurse -Force; $n++
+    $dst = Join-Path $skillsDst $_.Name
+    if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
+    Copy-Item $_.FullName $dst -Recurse -Force; $n++
   }
   Say "[skills] $n skill folder(s) synced into ~/.claude/skills" 'Green'
+  $bad = @(Get-ChildItem $skillsDst -Directory | Where-Object { -not (Test-Path (Join-Path $_.FullName 'SKILL.md')) })
+  if ($bad) { Say ("[warn] folders with NO SKILL.md (will not load): " + ($bad.Name -join ', ')) 'Red' }
+  else { Say "[verify] every skill folder has a SKILL.md at its top level" 'Green' }
 }
 
 # 3) memory scaffold (create only if missing — never clobber her memories)
