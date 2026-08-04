@@ -69,5 +69,49 @@ her to type passwords, card numbers, or 2FA codes.
 }
 Say "[memory] scaffold present" 'Green'
 
+# 4) session reflex hook - the "wired, not prose" layer. SessionStart hooks only PRINT; they cannot
+# block, refuse, or trap a turn, so this can never lock her out. Idempotent; backs up settings first;
+# skips entirely if settings.json exists but does not parse (never corrupt a file we can't read).
+$hookSrc = Join-Path $here 'hooks\mom_session_reflex.ps1'
+if (Test-Path $hookSrc) {
+  $hookDir = Join-Path $claude 'hooks'
+  New-Item -ItemType Directory -Force $hookDir | Out-Null
+  $hookDst = Join-Path $hookDir 'mom_session_reflex.ps1'
+  Copy-Item $hookSrc $hookDst -Force
+  $cmd = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$hookDst`""
+  $setPath = Join-Path $claude 'settings.json'
+  $settings = $null; $readable = $true
+  if (Test-Path $setPath) {
+    try { $settings = Get-Content $setPath -Raw | ConvertFrom-Json } catch { $readable = $false }
+  }
+  if (-not $readable) {
+    Say "[hook] settings.json exists but does not parse - left untouched. Reflex hook copied, not wired." 'Red'
+  } else {
+    if (-not $settings) { $settings = [pscustomobject]@{} }
+    if (-not $settings.PSObject.Properties['hooks']) {
+      $settings | Add-Member -NotePropertyName hooks -NotePropertyValue ([pscustomobject]@{}) }
+    if (-not $settings.hooks.PSObject.Properties['SessionStart']) {
+      $settings.hooks | Add-Member -NotePropertyName SessionStart -NotePropertyValue @() }
+    $already = ($settings | ConvertTo-Json -Depth 20) -match 'mom_session_reflex'
+    if ($already) { Say "[hook] session reflex already wired" 'DarkGray' }
+    else {
+      if (Test-Path $setPath) { Copy-Item $setPath "$setPath.bak_$(Get-Date -Format yyyyMMdd_HHmmss)" -Force }
+      $entry = [pscustomobject]@{ hooks = @([pscustomobject]@{ type = 'command'; command = $cmd }) }
+      # NOTE: the @( ) around the whole pipeline is load-bearing. Without it the pipeline unrolls to a
+      # single object and ConvertTo-Json emits SessionStart as an OBJECT, not an ARRAY - Claude Code
+      # then ignores the hook while the installer still prints "WIRED". Verified in a sandbox 2026-08-04.
+      $settings.hooks.SessionStart = @(@($settings.hooks.SessionStart) + $entry | Where-Object { $_ })
+      $settings | ConvertTo-Json -Depth 20 | Set-Content $setPath -Encoding UTF8
+      try {
+        Get-Content $setPath -Raw | ConvertFrom-Json | Out-Null
+        Say "[hook] session reflex WIRED - the laws now load every session, not just when read" 'Green'
+      } catch {
+        $bk = Get-ChildItem "$setPath.bak_*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($bk) { Copy-Item $bk.FullName $setPath -Force; Say "[hook] wiring produced invalid JSON - ROLLED BACK" 'Red' }
+      }
+    }
+  }
+}
+
 Say "`n=== DONE ===" 'Cyan'
 Say "Restart Claude Code so it loads the update: close it, then type  claude" 'Green'
