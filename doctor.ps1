@@ -67,6 +67,38 @@ if ($noManifest) { Say ("[FAIL] folders with no SKILL.md: " + ($noManifest -join
 Say "[info] $count skill folder(s) installed" 'Gray'
 if ($count -lt 10) { Say "[FAIL] expected 10+ skills - the package did not install fully" 'Red'; $fail += 'skills-count' }
 
+# 2026-08-05: this doctor printed ALL CHECKS PASSED on a machine carrying 22 skills against a
+# 19-skill package, one of which (cross-model-verify) pointed at the AUTHOR'S OWN machine paths and
+# could never work here. Counting folders is not checking them. Two real checks now:
+#   (a) drift  - installed set vs the manifest install.ps1 writes
+#   (b) foreign - any installed skill referencing another machine's paths, which cannot run here
+$manifestPath = Join-Path $claude '.package_skills.txt'
+if (Test-Path $manifestPath) {
+  $expected = @(Get-Content $manifestPath | Where-Object { $_.Trim() })
+  $have     = @(Get-ChildItem $skillsDir -Directory -EA SilentlyContinue | ForEach-Object { $_.Name })
+  $extra    = @($have | Where-Object { $expected -notcontains $_ })
+  $absent   = @($expected | Where-Object { $have -notcontains $_ })
+  if ($absent) { Say ("[FAIL] package skills MISSING: " + ($absent -join ', ')) 'Red'; $fail += 'skills-missing' }
+  if ($extra)  { Say ("[warn] not from the package: " + ($extra -join ', ') + " (fine if she added them; stale otherwise - re-run install.ps1 to prune)") 'Yellow' }
+  if (-not $absent -and -not $extra) { Say "[ok]   installed skills match the package exactly ($($expected.Count))" 'Green' }
+} else {
+  Say "[warn] no package manifest yet - run install.ps1 once so drift can be detected" 'Yellow'
+}
+
+$foreign = @()
+foreach ($d in (Get-ChildItem $skillsDir -Directory -EA SilentlyContinue)) {
+  $sk = Join-Path $d.FullName 'SKILL.md'
+  if (-not (Test-Path $sk)) { continue }
+  $txt = Get-Content $sk -Raw -EA SilentlyContinue
+  # A path rooted at some OTHER user's profile means the skill was written for a different machine.
+  if ($txt -match 'C:\\Users\\(?!' + [regex]::Escape($env:USERNAME) + ')[A-Za-z0-9._-]+\\') { $foreign += $d.Name }
+}
+if ($foreign) {
+  Say ("[FAIL] skill(s) referencing ANOTHER machine's paths - cannot work here: " + ($foreign -join ', ')) 'Red'
+  Say "       Re-run install.ps1; if they persist they were hand-copied and should be deleted." 'Red'
+  $fail += 'skills-foreign'
+} else { Say "[ok]   no skill references another machine's paths" 'Green' }
+
 # --- 3. memory ----------------------------------------------------------------
 $idx = Join-Path $claude 'memory\MEMORY.md'
 if ((Test-Path $idx) -and ((Get-Item $idx).Length -gt 0)) { Say "[ok]   memory index present" 'Green' }
