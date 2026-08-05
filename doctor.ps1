@@ -26,9 +26,30 @@ Say "=== CLAUDE DOCTOR on $env:COMPUTERNAME ===" 'Cyan'
 
 # --- 1. brain -----------------------------------------------------------------
 $brain = Join-Path $claude 'CLAUDE.md'
-$brainOK = (Test-Path $brain) -and ((Get-Content $brain -Raw) -match 'five laws that stop you sliding backwards')
-if ($brainOK) { Say "[ok]   brain present and current" 'Green' }
-else          { Say "[FAIL] brain missing or stale" 'Red'; $fail += 'brain' }
+$brainTxt = if (Test-Path $brain) { Get-Content $brain -Raw } else { '' }
+# Every required section is named here. A brain that loads but is MISSING one of these is the
+# regression we keep paying for: on 2026-08-04 a capability-denial rule ("you cannot control her
+# laptop - say plainly that you can't") made an otherwise-healthy assistant refuse real work for a
+# month. "The file exists" is not the check. "The file contains the laws" is the check.
+$required = @(
+  @{ marker = 'five laws that stop you sliding backwards'; why = 'anti-regression laws' },
+  @{ marker = 'KNOW YOUR HANDS';                           why = 'never-say-I-cant law (added 2026-08-04)' }
+)
+$missing = @($required | Where-Object { $brainTxt -notmatch [regex]::Escape($_.marker) })
+if (-not (Test-Path $brain)) { Say "[FAIL] brain missing entirely" 'Red'; $fail += 'brain' }
+elseif ($missing.Count -gt 0) {
+  foreach ($m in $missing) { Say "[FAIL] brain is STALE - missing $($m.why)" 'Red' }
+  $fail += 'brain'
+} else { Say "[ok]   brain present and current (all $($required.Count) required sections)" 'Green' }
+
+# A capability-denial rule must never come BACK. Scan for the exact wording that caused the outage.
+$denials = @('you never could', 'name the exact next tap', "say plainly that you can't")
+$found = @($denials | Where-Object { $brainTxt -match [regex]::Escape($_) })
+if ($found.Count -gt 0) {
+  Say ("[FAIL] brain contains a CAPABILITY-DENIAL rule again: '" + ($found -join "', '") + "'") 'Red'
+  Say "       That wording teaches the assistant to refuse work it can do. Re-run install.ps1." 'Red'
+  $fail += 'brain-denial'
+} else { Say "[ok]   no capability-denial wording in the brain" 'Green' }
 
 # --- 2. skills ----------------------------------------------------------------
 $skillsDir = Join-Path $claude 'skills'
