@@ -38,6 +38,39 @@ if (Test-Path $skillsSrc) {
     Copy-Item $_.FullName $dst -Recurse -Force; $n++
   }
   Say "[skills] $n skill folder(s) synced into ~/.claude/skills" 'Green'
+
+  # PRUNE 2026-08-05: sync replaced folders but never REMOVED ones the package dropped. Result on
+  # serenity1956: doctor reported 22 installed against a 19-skill package, and one leftover
+  # (cross-model-verify) still referenced the author's own machine paths - a skill that cannot work
+  # here and quietly teaches wrong things. A package that can add but never remove is not a package.
+  # We only ever remove what THIS package installed before, tracked in a manifest, so anything she
+  # or anyone else added by hand is never touched.
+  $manifestPath = Join-Path $claude '.package_skills.txt'
+  $current = @(Get-ChildItem $skillsSrc -Directory | ForEach-Object { $_.Name })
+  $previous = if (Test-Path $manifestPath) {
+    @(Get-Content $manifestPath | Where-Object { $_.Trim() })
+  } else {
+    # First run after this fix: no manifest exists yet, so seed it with the names this package is
+    # known to have shipped historically. Without this the original strays would live forever.
+    @('omnigod', 'cross-model-verify', 'paste-first-proofread', 'chain-of-thought-prompting-canon',
+      'hollywood-morph-craft') + $current
+  }
+  $orphans = @($previous | Where-Object { $current -notcontains $_ } | Select-Object -Unique)
+  foreach ($o in $orphans) {
+    $op = Join-Path $skillsDst $o
+    if (Test-Path $op) {
+      Remove-Item -LiteralPath $op -Recurse -Force -EA SilentlyContinue
+      Say "[prune] removed '$o' - dropped from the package (stale or not portable)" 'Yellow'
+    }
+  }
+  Set-Content -Path $manifestPath -Value $current -Encoding UTF8
+  $installedNow = @(Get-ChildItem $skillsDst -Directory).Count
+  if ($installedNow -eq $current.Count) {
+    Say "[verify] installed skill count $installedNow matches the package exactly" 'Green'
+  } else {
+    Say "[info] $installedNow skill folder(s) present; package ships $($current.Count) (extras were added outside this package)" 'Gray'
+  }
+
   $bad = @(Get-ChildItem $skillsDst -Directory | Where-Object { -not (Test-Path (Join-Path $_.FullName 'SKILL.md')) })
   if ($bad) { Say ("[warn] folders with NO SKILL.md (will not load): " + ($bad.Name -join ', ')) 'Red' }
   else { Say "[verify] every skill folder has a SKILL.md at its top level" 'Green' }
